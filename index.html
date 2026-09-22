@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Control Escolar QR GSR</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f4f7fb;
+      color: #17365d;
+      text-align: center;
+    }
+
+    header {
+      background: #17365d;
+      color: white;
+      padding: 18px 10px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+
+    header p {
+      margin: 6px 0 0;
+      font-size: 14px;
+    }
+
+    main {
+      max-width: 500px;
+      margin: auto;
+      padding: 18px;
+    }
+
+    #reader {
+      width: 100%;
+      background: white;
+      border-radius: 15px;
+      overflow: hidden;
+    }
+
+    #estado {
+      margin-top: 18px;
+      padding: 20px;
+      border-radius: 15px;
+      background: white;
+      min-height: 100px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    }
+
+    .correcto {
+      background: #e8f5e9 !important;
+      color: #146c2e;
+    }
+
+    .duplicado {
+      background: #fff8e1 !important;
+      color: #8a6200;
+    }
+
+    .error {
+      background: #ffebee !important;
+      color: #b71c1c;
+    }
+
+    .mensaje {
+      font-size: 19px;
+      font-weight: bold;
+    }
+
+    .nombre {
+      font-size: 24px;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    .grupo {
+      font-size: 22px;
+      margin-top: 7px;
+    }
+
+    .hora {
+      font-size: 20px;
+      margin-top: 7px;
+    }
+
+    .pie {
+      margin-top: 15px;
+      font-size: 13px;
+      color: #777;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>CONTROL DE ACCESO</h1>
+  <p>Escuela Primaria Prof. Graciano Sánchez Romo</p>
+</header>
+
+<main>
+
+  <div id="reader"></div>
+
+  <div id="estado">
+    <div class="mensaje">
+      📷 Iniciando cámara...
+    </div>
+  </div>
+
+  <div class="pie">
+    Ciclo Escolar 2026–2027
+  </div>
+
+</main>
+
+
+<script>
+
+const API_URL =
+  "https://script.google.com/macros/s/AKfycbx8r4ubVKQkRKfH6kCjVdLJWuktdn3mwaJ2hJrOxgzIOP-GATweZZw7DVgeEEFIa8US/exec";
+
+let procesando = false;
+let ultimoCodigo = "";
+let ultimoEscaneo = 0;
+
+
+function qrDetectado(texto) {
+
+  texto = String(texto).trim();
+
+  const ahora = Date.now();
+
+  if (
+    procesando ||
+    (
+      texto === ultimoCodigo &&
+      ahora - ultimoEscaneo < 5000
+    )
+  ) {
+    return;
+  }
+
+  procesando = true;
+  ultimoCodigo = texto;
+  ultimoEscaneo = ahora;
+
+  const estado =
+    document.getElementById("estado");
+
+  estado.className = "";
+
+  estado.innerHTML =
+    '<div class="mensaje">⏳ Verificando alumno...</div>' +
+    '<p>' + escapar(texto) + '</p>';
+
+
+  const url =
+    API_URL +
+    "?matricula=" +
+    encodeURIComponent(texto);
+
+
+  fetch(url)
+    .then(respuesta => {
+
+      if (!respuesta.ok) {
+        throw new Error(
+          "Respuesta HTTP " + respuesta.status
+        );
+      }
+
+      return respuesta.json();
+
+    })
+
+    .then(resultado => {
+
+      mostrarResultado(resultado);
+
+    })
+
+    .catch(error => {
+
+      console.error(error);
+
+      estado.className = "error";
+
+      estado.innerHTML =
+        '<div class="mensaje">❌ ERROR DE CONEXIÓN</div>' +
+        '<p>No se pudo registrar el alumno.</p>';
+
+      procesando = false;
+
+    });
+}
+
+
+function mostrarResultado(resultado) {
+
+  const estado =
+    document.getElementById("estado");
+
+
+  if (resultado.ok) {
+
+    estado.className = "correcto";
+
+    estado.innerHTML =
+      '<div class="mensaje">✅ ENTRADA REGISTRADA</div>' +
+
+      '<div class="nombre">' +
+      escapar(resultado.nombre) +
+      '</div>' +
+
+      '<div class="grupo">' +
+      resultado.grado +
+      '.º ' +
+      escapar(resultado.grupo) +
+      '</div>' +
+
+      '<div class="hora">🕐 ' +
+      escapar(resultado.hora) +
+      '</div>';
+
+    vibrar([100,70,100]);
+
+
+  } else if (resultado.duplicado) {
+
+    estado.className = "duplicado";
+
+    estado.innerHTML =
+      '<div class="mensaje">⚠️ ENTRADA YA REGISTRADA</div>' +
+
+      '<div class="nombre">' +
+      escapar(resultado.nombre) +
+      '</div>' +
+
+      '<div class="grupo">' +
+      resultado.grado +
+      '.º ' +
+      escapar(resultado.grupo) +
+      '</div>';
+
+    vibrar([200]);
+
+
+  } else {
+
+    estado.className = "error";
+
+    estado.innerHTML =
+      '<div class="mensaje">❌ ' +
+      escapar(resultado.mensaje) +
+      '</div>';
+
+    vibrar([300,100,300]);
+  }
+
+
+  setTimeout(function() {
+
+    procesando = false;
+
+    estado.className = "";
+
+    estado.innerHTML =
+      '<div class="mensaje">' +
+      '📷 Listo para el siguiente alumno' +
+      '</div>';
+
+  }, 2500);
+}
+
+
+function escapar(texto) {
+
+  const div =
+    document.createElement("div");
+
+  div.textContent =
+    String(texto || "");
+
+  return div.innerHTML;
+}
+
+
+function vibrar(patron) {
+
+  if (navigator.vibrate) {
+    navigator.vibrate(patron);
+  }
+}
+
+
+// --------------------------
+// INICIAR LECTOR QR
+// --------------------------
+
+const lector =
+  new Html5QrcodeScanner(
+
+    "reader",
+
+    {
+      fps: 10,
+
+      qrbox: {
+        width: 250,
+        height: 250
+      },
+
+      rememberLastUsedCamera: true,
+
+      supportedScanTypes: [
+        Html5QrcodeScanType.SCAN_TYPE_CAMERA
+      ]
+    },
+
+    false
+  );
+
+
+lector.render(
+  qrDetectado,
+
+  function(error) {
+    // Los errores normales mientras
+    // busca un QR se ignoran.
+  }
+);
+
+</script>
+
+</body>
+</html>
