@@ -9,6 +9,10 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: Arial, sans-serif;
       margin: 0;
@@ -20,23 +24,23 @@
     header {
       background: #17365d;
       color: white;
-      padding: 18px 10px;
+      padding: 16px 10px;
     }
 
     header h1 {
       margin: 0;
-      font-size: 24px;
+      font-size: 23px;
     }
 
     header p {
-      margin: 6px 0 0;
-      font-size: 14px;
+      margin: 5px 0 0;
+      font-size: 13px;
     }
 
     main {
       max-width: 500px;
       margin: auto;
-      padding: 18px;
+      padding: 15px;
     }
 
     #reader {
@@ -47,54 +51,65 @@
     }
 
     #estado {
-      margin-top: 18px;
-      padding: 20px;
+      margin-top: 15px;
+      padding: 20px 15px;
       border-radius: 15px;
       background: white;
-      min-height: 100px;
+      min-height: 115px;
       box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      transition: .2s;
     }
 
-    .correcto {
+    .entrada {
       background: #e8f5e9 !important;
       color: #146c2e;
+      border: 2px solid #4caf50;
+    }
+
+    .salida {
+      background: #e3f2fd !important;
+      color: #0d47a1;
+      border: 2px solid #2196f3;
     }
 
     .duplicado {
       background: #fff8e1 !important;
-      color: #8a6200;
+      color: #805b00;
+      border: 2px solid #ffc107;
     }
 
     .error {
       background: #ffebee !important;
       color: #b71c1c;
+      border: 2px solid #ef5350;
     }
 
     .mensaje {
-      font-size: 19px;
+      font-size: 20px;
       font-weight: bold;
     }
 
     .nombre {
       font-size: 24px;
       font-weight: bold;
-      margin-top: 10px;
+      margin-top: 9px;
     }
 
     .grupo {
-      font-size: 22px;
-      margin-top: 7px;
+      font-size: 21px;
+      margin-top: 6px;
     }
 
     .hora {
       font-size: 20px;
-      margin-top: 7px;
+      margin-top: 6px;
+      font-weight: bold;
     }
 
     .pie {
-      margin-top: 15px;
-      font-size: 13px;
+      margin-top: 14px;
       color: #777;
+      font-size: 12px;
     }
   </style>
 </head>
@@ -111,9 +126,7 @@
   <div id="reader"></div>
 
   <div id="estado">
-    <div class="mensaje">
-      📷 Iniciando cámara...
-    </div>
+    <div class="mensaje">📷 Iniciando cámara...</div>
   </div>
 
   <div class="pie">
@@ -122,36 +135,57 @@
 
 </main>
 
-
 <script>
 
 const API_URL =
-  "https://script.google.com/macros/s/AKfycbx8r4ubVKQkRKfH6kCjVdLJWuktdn3mwaJ2hJrOxgzIOP-GATweZZw7DVgeEEFIa8US/exec";
+"https://script.google.com/macros/s/AKfycbx8r4ubVKQkRKfH6kCjVdLJWuktdn3mwaJ2hJrOxgzIOP-GATweZZw7DVgeEEFIa8US/exec";
 
 let procesando = false;
-let ultimoCodigo = "";
-let ultimoEscaneo = 0;
 
+// Último QR enviado al servidor
+let ultimoCodigo = "";
+
+// Momento en que se envió
+let ultimoEnvio = 0;
+
+// Protección adicional del teléfono
+const BLOQUEO_LOCAL_MS = 5000;
+
+
+/* =========================================
+   QR DETECTADO
+========================================= */
 
 function qrDetectado(texto) {
 
-  texto = String(texto).trim();
+  texto = String(texto || "")
+    .trim()
+    .toUpperCase();
+
+  if (!texto) {
+    return;
+  }
 
   const ahora = Date.now();
 
+  // Si todavía estamos esperando respuesta
+  // del servidor, ignoramos TODO.
+  if (procesando) {
+    return;
+  }
+
+  // Si la cámara continúa viendo el mismo QR,
+  // no volver a enviarlo inmediatamente.
   if (
-    procesando ||
-    (
-      texto === ultimoCodigo &&
-      ahora - ultimoEscaneo < 5000
-    )
+    texto === ultimoCodigo &&
+    ahora - ultimoEnvio < BLOQUEO_LOCAL_MS
   ) {
     return;
   }
 
   procesando = true;
   ultimoCodigo = texto;
-  ultimoEscaneo = ahora;
+  ultimoEnvio = ahora;
 
   const estado =
     document.getElementById("estado");
@@ -159,50 +193,61 @@ function qrDetectado(texto) {
   estado.className = "";
 
   estado.innerHTML =
-    '<div class="mensaje">⏳ Verificando alumno...</div>' +
-    '<p>' + escapar(texto) + '</p>';
-
+    '<div class="mensaje">⏳ VERIFICANDO...</div>' +
+    '<p>Procesando credencial</p>';
 
   const url =
     API_URL +
     "?matricula=" +
-    encodeURIComponent(texto);
+    encodeURIComponent(texto) +
+    "&t=" +
+    Date.now();
 
 
-  fetch(url)
-    .then(respuesta => {
+  fetch(url, {
+    method: "GET",
+    cache: "no-store"
+  })
 
-      if (!respuesta.ok) {
-        throw new Error(
-          "Respuesta HTTP " + respuesta.status
-        );
-      }
+  .then(function(respuesta) {
 
-      return respuesta.json();
+    if (!respuesta.ok) {
+      throw new Error(
+        "HTTP " + respuesta.status
+      );
+    }
 
-    })
+    return respuesta.json();
+  })
 
-    .then(resultado => {
+  .then(function(resultado) {
 
-      mostrarResultado(resultado);
+    mostrarResultado(resultado);
 
-    })
+  })
 
-    .catch(error => {
+  .catch(function(error) {
 
-      console.error(error);
+    console.error(error);
 
-      estado.className = "error";
+    estado.className = "error";
 
-      estado.innerHTML =
-        '<div class="mensaje">❌ ERROR DE CONEXIÓN</div>' +
-        '<p>No se pudo registrar el alumno.</p>';
+    estado.innerHTML =
+      '<div class="mensaje">' +
+      '❌ ERROR DE CONEXIÓN' +
+      '</div>' +
+      '<p>No se pudo completar el registro.</p>';
 
-      procesando = false;
+    vibrar([300,100,300]);
 
-    });
+    setTimeout(listoSiguiente, 3000);
+  });
 }
 
+
+/* =========================================
+   MOSTRAR RESULTADO
+========================================= */
 
 function mostrarResultado(resultado) {
 
@@ -210,36 +255,88 @@ function mostrarResultado(resultado) {
     document.getElementById("estado");
 
 
+  // -------------------------
+  // REGISTRO CORRECTO
+  // -------------------------
+
   if (resultado.ok) {
 
-    estado.className = "correcto";
+    if (resultado.tipo === "SALIDA") {
 
-    estado.innerHTML =
-      '<div class="mensaje">✅ ENTRADA REGISTRADA</div>' +
+      estado.className = "salida";
 
-      '<div class="nombre">' +
-      escapar(resultado.nombre) +
-      '</div>' +
+      estado.innerHTML =
+        '<div class="mensaje">' +
+        '🔵 SALIDA REGISTRADA' +
+        '</div>' +
 
-      '<div class="grupo">' +
-      resultado.grado +
-      '.º ' +
-      escapar(resultado.grupo) +
-      '</div>' +
+        '<div class="nombre">' +
+        escapar(resultado.nombre) +
+        '</div>' +
 
-      '<div class="hora">🕐 ' +
-      escapar(resultado.hora) +
-      '</div>';
+        '<div class="grupo">' +
+        resultado.grado +
+        '.º ' +
+        escapar(resultado.grupo) +
+        '</div>' +
 
-    vibrar([100,70,100]);
+        '<div class="hora">' +
+        '🕐 ' +
+        escapar(resultado.hora) +
+        '</div>';
+
+      vibrar([150,80,150]);
+
+    } else {
+
+      estado.className = "entrada";
+
+      estado.innerHTML =
+        '<div class="mensaje">' +
+        '🟢 ENTRADA REGISTRADA' +
+        '</div>' +
+
+        '<div class="nombre">' +
+        escapar(resultado.nombre) +
+        '</div>' +
+
+        '<div class="grupo">' +
+        resultado.grado +
+        '.º ' +
+        escapar(resultado.grupo) +
+        '</div>' +
+
+        '<div class="hora">' +
+        '🕐 ' +
+        escapar(resultado.hora) +
+        '</div>';
+
+      vibrar([100,60,100]);
+    }
+
+    // Dejamos visible el resultado unos segundos.
+    setTimeout(listoSiguiente, 2500);
+    return;
+  }
 
 
-  } else if (resultado.duplicado) {
+  // -------------------------
+  // REESCANEO ACCIDENTAL
+  // -------------------------
+
+  if (resultado.duplicado) {
 
     estado.className = "duplicado";
 
+    const tipo =
+      resultado.tipo || "REGISTRO";
+
     estado.innerHTML =
-      '<div class="mensaje">⚠️ ENTRADA YA REGISTRADA</div>' +
+      '<div class="mensaje">' +
+      '⚠️ ' +
+      escapar(tipo) +
+      ' YA REGISTRADA' +
+      '</div>' +
 
       '<div class="nombre">' +
       escapar(resultado.nombre) +
@@ -249,38 +346,94 @@ function mostrarResultado(resultado) {
       resultado.grado +
       '.º ' +
       escapar(resultado.grupo) +
-      '</div>';
+      '</div>' +
 
-    vibrar([200]);
+      '<p>No se creó otro registro.</p>';
+
+    vibrar([250]);
+
+    setTimeout(listoSiguiente, 2500);
+    return;
+  }
 
 
-  } else {
+  // -------------------------
+  // YA TIENE ENTRADA Y SALIDA
+  // -------------------------
+
+  if (resultado.completo) {
 
     estado.className = "error";
 
     estado.innerHTML =
-      '<div class="mensaje">❌ ' +
-      escapar(resultado.mensaje) +
-      '</div>';
+      '<div class="mensaje">' +
+      '⛔ REGISTRO COMPLETO' +
+      '</div>' +
+
+      '<div class="nombre">' +
+      escapar(resultado.nombre) +
+      '</div>' +
+
+      '<div class="grupo">' +
+      resultado.grado +
+      '.º ' +
+      escapar(resultado.grupo) +
+      '</div>' +
+
+      '<p>Ya tiene entrada y salida registradas hoy.</p>';
 
     vibrar([300,100,300]);
+
+    setTimeout(listoSiguiente, 3000);
+    return;
   }
 
 
-  setTimeout(function() {
+  // -------------------------
+  // OTROS ERRORES
+  // -------------------------
 
-    procesando = false;
+  estado.className = "error";
 
-    estado.className = "";
+  estado.innerHTML =
+    '<div class="mensaje">❌ ERROR</div>' +
+    '<p>' +
+    escapar(
+      resultado.mensaje ||
+      "No fue posible registrar."
+    ) +
+    '</p>';
 
-    estado.innerHTML =
-      '<div class="mensaje">' +
-      '📷 Listo para el siguiente alumno' +
-      '</div>';
+  vibrar([300,100,300]);
 
-  }, 2500);
+  setTimeout(listoSiguiente, 3000);
 }
 
+
+/* =========================================
+   PREPARAR SIGUIENTE ALUMNO
+========================================= */
+
+function listoSiguiente() {
+
+  procesando = false;
+
+  const estado =
+    document.getElementById("estado");
+
+  estado.className = "";
+
+  estado.innerHTML =
+    '<div class="mensaje">' +
+    '📷 LISTO PARA EL SIGUIENTE ALUMNO' +
+    '</div>' +
+    '<p>Acerque la credencial a la cámara.</p>';
+}
+
+
+/* =========================================
+   SEGURIDAD TEXTO
+========================================= */
 
 function escapar(texto) {
 
@@ -294,6 +447,10 @@ function escapar(texto) {
 }
 
 
+/* =========================================
+   VIBRACIÓN
+========================================= */
+
 function vibrar(patron) {
 
   if (navigator.vibrate) {
@@ -302,9 +459,9 @@ function vibrar(patron) {
 }
 
 
-// --------------------------
-// INICIAR LECTOR QR
-// --------------------------
+/* =========================================
+   INICIAR CÁMARA
+========================================= */
 
 const lector =
   new Html5QrcodeScanner(
@@ -334,8 +491,8 @@ lector.render(
   qrDetectado,
 
   function(error) {
-    // Los errores normales mientras
-    // busca un QR se ignoran.
+    // Es normal que existan errores de lectura
+    // mientras no haya un QR frente a la cámara.
   }
 );
 
