@@ -3,15 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>Control Escolar QR GSR</title>
 
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       font-family: Arial, sans-serif;
@@ -24,7 +21,7 @@
     header {
       background: #17365d;
       color: white;
-      padding: 16px 10px;
+      padding: 15px 10px;
     }
 
     header h1 {
@@ -40,7 +37,45 @@
     main {
       max-width: 500px;
       margin: auto;
-      padding: 15px;
+      padding: 14px;
+    }
+
+    .selector {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .modo {
+      flex: 1;
+      padding: 15px 5px;
+      border-radius: 12px;
+      border: 2px solid #ccc;
+      background: white;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+      opacity: .55;
+    }
+
+    #btnEntrada.activo {
+      background: #2e7d32;
+      color: white;
+      border-color: #2e7d32;
+      opacity: 1;
+    }
+
+    #btnSalida.activo {
+      background: #1565c0;
+      color: white;
+      border-color: #1565c0;
+      opacity: 1;
+    }
+
+    #modoActual {
+      font-weight: bold;
+      margin-bottom: 12px;
+      font-size: 17px;
     }
 
     #reader {
@@ -57,7 +92,6 @@
       background: white;
       min-height: 115px;
       box-shadow: 0 2px 8px rgba(0,0,0,.08);
-      transition: .2s;
     }
 
     .entrada {
@@ -123,6 +157,26 @@
 
 <main>
 
+  <div class="selector">
+    <button
+      id="btnEntrada"
+      class="modo activo"
+      onclick="cambiarModo('ENTRADA')">
+      🟢 ENTRADA
+    </button>
+
+    <button
+      id="btnSalida"
+      class="modo"
+      onclick="cambiarModo('SALIDA')">
+      🔵 SALIDA
+    </button>
+  </div>
+
+  <div id="modoActual">
+    Modo actual: 🟢 ENTRADA
+  </div>
+
   <div id="reader"></div>
 
   <div id="estado">
@@ -135,26 +189,71 @@
 
 </main>
 
+
 <script>
 
 const API_URL =
 "https://script.google.com/macros/s/AKfycbx8r4ubVKQkRKfH6kCjVdLJWuktdn3mwaJ2hJrOxgzIOP-GATweZZw7DVgeEEFIa8US/exec";
 
+let tipoActual = "ENTRADA";
 let procesando = false;
-
-// Último QR enviado al servidor
 let ultimoCodigo = "";
-
-// Momento en que se envió
 let ultimoEnvio = 0;
 
-// Protección adicional del teléfono
-const BLOQUEO_LOCAL_MS = 5000;
+// Evita reenviar inmediatamente el mismo QR.
+const BLOQUEO_LOCAL_MS = 8000;
 
 
-/* =========================================
+/* ================================
+   CAMBIAR ENTRADA / SALIDA
+================================ */
+
+function cambiarModo(tipo) {
+
+  if (procesando) {
+    return;
+  }
+
+  tipoActual = tipo;
+
+  const entrada =
+    document.getElementById("btnEntrada");
+
+  const salida =
+    document.getElementById("btnSalida");
+
+  const texto =
+    document.getElementById("modoActual");
+
+  if (tipo === "ENTRADA") {
+
+    entrada.classList.add("activo");
+    salida.classList.remove("activo");
+
+    texto.innerHTML =
+      "Modo actual: 🟢 ENTRADA";
+
+  } else {
+
+    salida.classList.add("activo");
+    entrada.classList.remove("activo");
+
+    texto.innerHTML =
+      "Modo actual: 🔵 SALIDA";
+  }
+
+  // Permite escanear una matrícula que pudiera
+  // haberse usado anteriormente en el otro modo.
+  ultimoCodigo = "";
+  ultimoEnvio = 0;
+
+  listoSiguiente();
+}
+
+
+/* ================================
    QR DETECTADO
-========================================= */
+================================ */
 
 function qrDetectado(texto) {
 
@@ -162,20 +261,12 @@ function qrDetectado(texto) {
     .trim()
     .toUpperCase();
 
-  if (!texto) {
+  if (!texto || procesando) {
     return;
   }
 
   const ahora = Date.now();
 
-  // Si todavía estamos esperando respuesta
-  // del servidor, ignoramos TODO.
-  if (procesando) {
-    return;
-  }
-
-  // Si la cámara continúa viendo el mismo QR,
-  // no volver a enviarlo inmediatamente.
   if (
     texto === ultimoCodigo &&
     ahora - ultimoEnvio < BLOQUEO_LOCAL_MS
@@ -194,15 +285,16 @@ function qrDetectado(texto) {
 
   estado.innerHTML =
     '<div class="mensaje">⏳ VERIFICANDO...</div>' +
-    '<p>Procesando credencial</p>';
+    '<p>' + tipoActual + '</p>';
 
   const url =
     API_URL +
     "?matricula=" +
     encodeURIComponent(texto) +
+    "&tipo=" +
+    encodeURIComponent(tipoActual) +
     "&t=" +
     Date.now();
-
 
   fetch(url, {
     method: "GET",
@@ -212,18 +304,14 @@ function qrDetectado(texto) {
   .then(function(respuesta) {
 
     if (!respuesta.ok) {
-      throw new Error(
-        "HTTP " + respuesta.status
-      );
+      throw new Error("HTTP " + respuesta.status);
     }
 
     return respuesta.json();
   })
 
   .then(function(resultado) {
-
     mostrarResultado(resultado);
-
   })
 
   .catch(function(error) {
@@ -233,9 +321,7 @@ function qrDetectado(texto) {
     estado.className = "error";
 
     estado.innerHTML =
-      '<div class="mensaje">' +
-      '❌ ERROR DE CONEXIÓN' +
-      '</div>' +
+      '<div class="mensaje">❌ ERROR DE CONEXIÓN</div>' +
       '<p>No se pudo completar el registro.</p>';
 
     vibrar([300,100,300]);
@@ -245,19 +331,14 @@ function qrDetectado(texto) {
 }
 
 
-/* =========================================
+/* ================================
    MOSTRAR RESULTADO
-========================================= */
+================================ */
 
 function mostrarResultado(resultado) {
 
   const estado =
     document.getElementById("estado");
-
-
-  // -------------------------
-  // REGISTRO CORRECTO
-  // -------------------------
 
   if (resultado.ok) {
 
@@ -266,24 +347,8 @@ function mostrarResultado(resultado) {
       estado.className = "salida";
 
       estado.innerHTML =
-        '<div class="mensaje">' +
-        '🔵 SALIDA REGISTRADA' +
-        '</div>' +
-
-        '<div class="nombre">' +
-        escapar(resultado.nombre) +
-        '</div>' +
-
-        '<div class="grupo">' +
-        resultado.grado +
-        '.º ' +
-        escapar(resultado.grupo) +
-        '</div>' +
-
-        '<div class="hora">' +
-        '🕐 ' +
-        escapar(resultado.hora) +
-        '</div>';
+        '<div class="mensaje">🔵 SALIDA REGISTRADA</div>' +
+        datosAlumno(resultado);
 
       vibrar([150,80,150]);
 
@@ -292,63 +357,37 @@ function mostrarResultado(resultado) {
       estado.className = "entrada";
 
       estado.innerHTML =
-        '<div class="mensaje">' +
-        '🟢 ENTRADA REGISTRADA' +
-        '</div>' +
-
-        '<div class="nombre">' +
-        escapar(resultado.nombre) +
-        '</div>' +
-
-        '<div class="grupo">' +
-        resultado.grado +
-        '.º ' +
-        escapar(resultado.grupo) +
-        '</div>' +
-
-        '<div class="hora">' +
-        '🕐 ' +
-        escapar(resultado.hora) +
-        '</div>';
+        '<div class="mensaje">🟢 ENTRADA REGISTRADA</div>' +
+        datosAlumno(resultado);
 
       vibrar([100,60,100]);
     }
 
-    // Dejamos visible el resultado unos segundos.
     setTimeout(listoSiguiente, 2500);
     return;
   }
 
 
-  // -------------------------
-  // REESCANEO ACCIDENTAL
-  // -------------------------
-
   if (resultado.duplicado) {
 
     estado.className = "duplicado";
 
-    const tipo =
-      resultado.tipo || "REGISTRO";
-
     estado.innerHTML =
-      '<div class="mensaje">' +
-      '⚠️ ' +
-      escapar(tipo) +
-      ' YA REGISTRADA' +
-      '</div>' +
+      '<div class="mensaje">⚠️ ' +
+      escapar(resultado.tipo) +
+      ' YA REGISTRADA</div>' +
 
       '<div class="nombre">' +
       escapar(resultado.nombre) +
       '</div>' +
 
       '<div class="grupo">' +
-      resultado.grado +
+      escapar(resultado.grado) +
       '.º ' +
       escapar(resultado.grupo) +
       '</div>' +
 
-      '<p>No se creó otro registro.</p>';
+      '<p>No se creó un registro duplicado.</p>';
 
     vibrar([250]);
 
@@ -357,30 +396,24 @@ function mostrarResultado(resultado) {
   }
 
 
-  // -------------------------
-  // YA TIENE ENTRADA Y SALIDA
-  // -------------------------
-
-  if (resultado.completo) {
+  if (resultado.sinEntrada) {
 
     estado.className = "error";
 
     estado.innerHTML =
-      '<div class="mensaje">' +
-      '⛔ REGISTRO COMPLETO' +
-      '</div>' +
+      '<div class="mensaje">⛔ SIN ENTRADA</div>' +
 
       '<div class="nombre">' +
       escapar(resultado.nombre) +
       '</div>' +
 
       '<div class="grupo">' +
-      resultado.grado +
+      escapar(resultado.grado) +
       '.º ' +
       escapar(resultado.grupo) +
       '</div>' +
 
-      '<p>Ya tiene entrada y salida registradas hoy.</p>';
+      '<p>Este alumno no tiene una entrada registrada hoy.</p>';
 
     vibrar([300,100,300]);
 
@@ -388,10 +421,6 @@ function mostrarResultado(resultado) {
     return;
   }
 
-
-  // -------------------------
-  // OTROS ERRORES
-  // -------------------------
 
   estado.className = "error";
 
@@ -410,9 +439,33 @@ function mostrarResultado(resultado) {
 }
 
 
-/* =========================================
-   PREPARAR SIGUIENTE ALUMNO
-========================================= */
+/* ================================
+   DATOS DEL ALUMNO
+================================ */
+
+function datosAlumno(resultado) {
+
+  return (
+    '<div class="nombre">' +
+    escapar(resultado.nombre) +
+    '</div>' +
+
+    '<div class="grupo">' +
+    escapar(resultado.grado) +
+    '.º ' +
+    escapar(resultado.grupo) +
+    '</div>' +
+
+    '<div class="hora">🕐 ' +
+    escapar(resultado.hora) +
+    '</div>'
+  );
+}
+
+
+/* ================================
+   SIGUIENTE ALUMNO
+================================ */
 
 function listoSiguiente() {
 
@@ -424,16 +477,16 @@ function listoSiguiente() {
   estado.className = "";
 
   estado.innerHTML =
-    '<div class="mensaje">' +
-    '📷 LISTO PARA EL SIGUIENTE ALUMNO' +
-    '</div>' +
-    '<p>Acerque la credencial a la cámara.</p>';
+    '<div class="mensaje">📷 LISTO PARA EL SIGUIENTE ALUMNO</div>' +
+    '<p>Modo: <strong>' +
+    tipoActual +
+    '</strong></p>';
 }
 
 
-/* =========================================
-   SEGURIDAD TEXTO
-========================================= */
+/* ================================
+   SEGURIDAD DE TEXTO
+================================ */
 
 function escapar(texto) {
 
@@ -441,15 +494,15 @@ function escapar(texto) {
     document.createElement("div");
 
   div.textContent =
-    String(texto || "");
+    String(texto ?? "");
 
   return div.innerHTML;
 }
 
 
-/* =========================================
+/* ================================
    VIBRACIÓN
-========================================= */
+================================ */
 
 function vibrar(patron) {
 
@@ -459,9 +512,9 @@ function vibrar(patron) {
 }
 
 
-/* =========================================
+/* ================================
    INICIAR CÁMARA
-========================================= */
+================================ */
 
 const lector =
   new Html5QrcodeScanner(
@@ -486,13 +539,11 @@ const lector =
     false
   );
 
-
 lector.render(
   qrDetectado,
-
   function(error) {
-    // Es normal que existan errores de lectura
-    // mientras no haya un QR frente a la cámara.
+    // Se ignoran los intentos de lectura
+    // mientras no haya un QR válido.
   }
 );
 
