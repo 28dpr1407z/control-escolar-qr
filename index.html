@@ -24,12 +24,12 @@
     header {
       background: #17365d;
       color: white;
-      padding: 15px 10px;
+      padding: 14px 10px;
     }
 
     header h1 {
       margin: 0;
-      font-size: 23px;
+      font-size: 22px;
     }
 
     header p {
@@ -43,26 +43,29 @@
       padding: 14px;
     }
 
-    /* ================================
-       SELECTOR ENTRADA / SALIDA
-    ================================= */
+    .tituloSelector {
+      font-size: 13px;
+      font-weight: bold;
+      color: #555;
+      margin: 10px 0 6px;
+    }
 
     .selector {
       display: flex;
       gap: 10px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
 
-    .modo {
+    .boton {
       flex: 1;
-      padding: 15px 5px;
+      padding: 14px 5px;
       border-radius: 12px;
       border: 2px solid #ccc;
       background: white;
-      font-size: 17px;
+      font-size: 16px;
       font-weight: bold;
       cursor: pointer;
-      opacity: .55;
+      opacity: .5;
     }
 
     #btnEntrada.activo {
@@ -79,15 +82,23 @@
       opacity: 1;
     }
 
-    #modoActual {
-      font-weight: bold;
-      margin-bottom: 12px;
-      font-size: 17px;
+    #btnRuta1.activo,
+    #btnRuta2.activo {
+      background: #ef6c00;
+      color: white;
+      border-color: #ef6c00;
+      opacity: 1;
     }
 
-    /* ================================
-       LECTOR
-    ================================= */
+    #configActual {
+      margin: 12px 0;
+      padding: 10px;
+      border-radius: 10px;
+      background: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      box-shadow: 0 1px 5px rgba(0,0,0,.08);
+    }
 
     #reader {
       width: 100%;
@@ -96,16 +107,12 @@
       overflow: hidden;
     }
 
-    /* ================================
-       RESULTADO
-    ================================= */
-
     #estado {
       margin-top: 15px;
       padding: 20px 15px;
       border-radius: 15px;
       background: white;
-      min-height: 130px;
+      min-height: 135px;
       box-shadow: 0 2px 8px rgba(0,0,0,.08);
     }
 
@@ -127,6 +134,12 @@
       border: 2px solid #ffc107;
     }
 
+    .advertencia {
+      background: #fff3e0 !important;
+      color: #8a4b00;
+      border: 2px solid #ff9800;
+    }
+
     .error {
       background: #ffebee !important;
       color: #b71c1c;
@@ -145,25 +158,31 @@
     }
 
     .grupo {
-      font-size: 21px;
-      margin-top: 6px;
+      font-size: 20px;
+      margin-top: 5px;
     }
 
     .ruta {
-      margin-top: 14px;
+      margin-top: 13px;
       font-size: 22px;
       font-weight: bold;
     }
 
     .parada {
-      margin-top: 8px;
+      margin-top: 7px;
       font-size: 19px;
       font-weight: bold;
     }
 
     .hora {
       font-size: 20px;
-      margin-top: 10px;
+      margin-top: 9px;
+      font-weight: bold;
+    }
+
+    .detalleError {
+      margin-top: 12px;
+      font-size: 18px;
       font-weight: bold;
     }
 
@@ -178,26 +197,32 @@
 <body>
 
 <header>
-  <h1>CONTROL DE TRANSPORTE</h1>
+  <h1>🚌 CONTROL DE TRANSPORTE</h1>
   <p>Escuela Primaria Prof. Graciano Sánchez Romo</p>
 </header>
 
 <main>
 
-  <!-- ENTRADA / SALIDA -->
+  <!-- =========================================
+       MOVIMIENTO
+  ========================================== -->
+
+  <div class="tituloSelector">
+    1. SELECCIONA EL MOVIMIENTO
+  </div>
 
   <div class="selector">
 
     <button
       id="btnEntrada"
-      class="modo activo"
+      class="boton activo"
       onclick="cambiarModo('ENTRADA')">
       🟢 ENTRADA
     </button>
 
     <button
       id="btnSalida"
-      class="modo"
+      class="boton"
       onclick="cambiarModo('SALIDA')">
       🔵 SALIDA
     </button>
@@ -205,22 +230,57 @@
   </div>
 
 
-  <div id="modoActual">
-    Modo actual: 🟢 ENTRADA
+  <!-- =========================================
+       RUTA
+  ========================================== -->
+
+  <div class="tituloSelector">
+    2. SELECCIONA EL AUTOBÚS
+  </div>
+
+  <div class="selector">
+
+    <button
+      id="btnRuta1"
+      class="boton"
+      onclick="cambiarRuta('RUTA 1')">
+      🚌 RUTA 1
+    </button>
+
+    <button
+      id="btnRuta2"
+      class="boton"
+      onclick="cambiarRuta('RUTA 2')">
+      🚌 RUTA 2
+    </button>
+
   </div>
 
 
-  <!-- CÁMARA -->
+  <!-- =========================================
+       CONFIGURACIÓN ACTUAL
+  ========================================== -->
+
+  <div id="configActual">
+    🟢 ENTRADA · ⚠️ SELECCIONA UNA RUTA
+  </div>
+
+
+  <!-- =========================================
+       CÁMARA
+  ========================================== -->
 
   <div id="reader"></div>
 
 
-  <!-- RESULTADO -->
+  <!-- =========================================
+       RESULTADO
+  ========================================== -->
 
   <div id="estado">
 
     <div class="mensaje">
-      📷 Iniciando cámara...
+      🚌 Selecciona RUTA 1 o RUTA 2
     </div>
 
   </div>
@@ -245,22 +305,23 @@ const API_URL =
 
 let tipoActual = "ENTRADA";
 
+// La ruta NO queda seleccionada automáticamente.
+// Esto evita comenzar a escanear accidentalmente
+// en el autobús equivocado.
+let rutaActual = "";
+
 let procesando = false;
 
 let ultimoCodigo = "";
 
 let ultimoEnvio = 0;
 
-
-// Protección adicional en el teléfono.
-// El servidor tiene su propia protección contra duplicados.
-
 const BLOQUEO_LOCAL_MS = 8000;
 
 
 
 /* ======================================================
-   CAMBIAR ENTRADA / SALIDA
+   CAMBIAR MOVIMIENTO
 ====================================================== */
 
 function cambiarModo(tipo) {
@@ -269,18 +330,13 @@ function cambiarModo(tipo) {
     return;
   }
 
-
   tipoActual = tipo;
-
 
   const entrada =
     document.getElementById("btnEntrada");
 
   const salida =
     document.getElementById("btnSalida");
-
-  const texto =
-    document.getElementById("modoActual");
 
 
   if (tipo === "ENTRADA") {
@@ -289,30 +345,96 @@ function cambiarModo(tipo) {
 
     salida.classList.remove("activo");
 
-    texto.innerHTML =
-      "Modo actual: 🟢 ENTRADA";
-
   } else {
 
     salida.classList.add("activo");
 
     entrada.classList.remove("activo");
 
-    texto.innerHTML =
-      "Modo actual: 🔵 SALIDA";
+  }
+
+
+  ultimoCodigo = "";
+  ultimoEnvio = 0;
+
+  actualizarConfiguracion();
+
+  listoSiguiente();
+}
+
+
+
+/* ======================================================
+   CAMBIAR RUTA
+====================================================== */
+
+function cambiarRuta(ruta) {
+
+  if (procesando) {
+    return;
+  }
+
+  rutaActual = ruta;
+
+
+  const ruta1 =
+    document.getElementById("btnRuta1");
+
+  const ruta2 =
+    document.getElementById("btnRuta2");
+
+
+  if (ruta === "RUTA 1") {
+
+    ruta1.classList.add("activo");
+
+    ruta2.classList.remove("activo");
+
+  } else {
+
+    ruta2.classList.add("activo");
+
+    ruta1.classList.remove("activo");
 
   }
 
 
-  // Al cambiar de modo permitimos nuevamente
-  // la lectura de cualquier credencial.
-
   ultimoCodigo = "";
-
   ultimoEnvio = 0;
 
+  actualizarConfiguracion();
 
   listoSiguiente();
+}
+
+
+
+/* ======================================================
+   MOSTRAR CONFIGURACIÓN
+====================================================== */
+
+function actualizarConfiguracion() {
+
+  const config =
+    document.getElementById("configActual");
+
+
+  const movimiento =
+    tipoActual === "ENTRADA"
+      ? "🟢 ENTRADA"
+      : "🔵 SALIDA";
+
+
+  const ruta =
+    rutaActual
+      ? "🚌 " + rutaActual
+      : "⚠️ SELECCIONA UNA RUTA";
+
+
+  config.innerHTML =
+    movimiento +
+    " · " +
+    ruta;
 }
 
 
@@ -329,15 +451,31 @@ function qrDetectado(texto) {
       .toUpperCase();
 
 
-  if (!texto) {
+  if (!texto || procesando) {
     return;
   }
 
 
-  // Mientras el servidor está procesando
-  // ignoramos cualquier lectura adicional.
+  // No permitimos enviar nada al servidor
+  // mientras no se haya seleccionado autobús.
 
-  if (procesando) {
+  if (!rutaActual) {
+
+    const estado =
+      document.getElementById("estado");
+
+    estado.className =
+      "advertencia";
+
+    estado.innerHTML =
+      '<div class="mensaje">' +
+      '⚠️ SELECCIONA UNA RUTA' +
+      '</div>' +
+
+      '<p>Selecciona RUTA 1 o RUTA 2 antes de escanear.</p>';
+
+    vibrar([250,100,250]);
+
     return;
   }
 
@@ -346,15 +484,11 @@ function qrDetectado(texto) {
     Date.now();
 
 
-  // Evitar reenvío inmediato del mismo QR.
-
   if (
     texto === ultimoCodigo &&
     ahora - ultimoEnvio < BLOQUEO_LOCAL_MS
   ) {
-
     return;
-
   }
 
 
@@ -377,9 +511,11 @@ function qrDetectado(texto) {
     '⏳ VERIFICANDO...' +
     '</div>' +
 
-    '<p>Movimiento: <strong>' +
+    '<p>' +
     escapar(tipoActual) +
-    '</strong></p>';
+    ' · ' +
+    escapar(rutaActual) +
+    '</p>';
 
 
   const url =
@@ -390,6 +526,9 @@ function qrDetectado(texto) {
 
     "&tipo=" +
     encodeURIComponent(tipoActual) +
+
+    "&ruta=" +
+    encodeURIComponent(rutaActual) +
 
     "&t=" +
     Date.now();
@@ -411,11 +550,9 @@ function qrDetectado(texto) {
         "HTTP " +
         respuesta.status
       );
-
     }
 
     return respuesta.json();
-
   })
 
   .then(function(resultado) {
@@ -428,10 +565,8 @@ function qrDetectado(texto) {
 
     console.error(error);
 
-
     estado.className =
       "error";
-
 
     estado.innerHTML =
       '<div class="mensaje">' +
@@ -440,19 +575,13 @@ function qrDetectado(texto) {
 
       '<p>No se pudo completar el registro.</p>';
 
-
-    vibrar(
-      [300,100,300]
-    );
-
+    vibrar([300,100,300]);
 
     setTimeout(
       listoSiguiente,
       3000
     );
-
   });
-
 }
 
 
@@ -467,12 +596,49 @@ function mostrarResultado(resultado) {
     document.getElementById("estado");
 
 
-  /* --------------------------------------------------
-     REGISTRO CORRECTO
-  -------------------------------------------------- */
+  // ====================================================
+  // REGISTRO CORRECTO
+  // ====================================================
 
   if (resultado.ok) {
 
+
+    // Alumno todavía sin ruta asignada.
+    // El registro SÍ se realizó.
+
+    if (resultado.rutaPendiente) {
+
+      estado.className =
+        "advertencia";
+
+
+      estado.innerHTML =
+        '<div class="mensaje">' +
+        '⚠️ REGISTRADO · RUTA PENDIENTE' +
+        '</div>' +
+
+        datosAlumno(resultado) +
+
+        '<p><strong>El movimiento sí fue registrado.</strong></p>' +
+
+        '<p>Este alumno todavía necesita una ruta asignada en ALUMNOS.</p>';
+
+
+      vibrar(
+        [150,80,150,80,150]
+      );
+
+
+      setTimeout(
+        listoSiguiente,
+        4000
+      );
+
+      return;
+    }
+
+
+    // SALIDA CORRECTA
 
     if (resultado.tipo === "SALIDA") {
 
@@ -493,8 +659,9 @@ function mostrarResultado(resultado) {
       );
 
 
-    } else {
+    // ENTRADA CORRECTA
 
+    } else {
 
       estado.className =
         "entrada";
@@ -511,7 +678,6 @@ function mostrarResultado(resultado) {
       vibrar(
         [100,60,100]
       );
-
     }
 
 
@@ -521,17 +687,76 @@ function mostrarResultado(resultado) {
     );
 
     return;
-
   }
 
 
 
-  /* --------------------------------------------------
-     DUPLICADO
-  -------------------------------------------------- */
+  // ====================================================
+  // RUTA INCORRECTA
+  // ====================================================
+
+  if (resultado.rutaIncorrecta) {
+
+    estado.className =
+      "error";
+
+
+    estado.innerHTML =
+      '<div class="mensaje">' +
+      '⛔ RUTA INCORRECTA' +
+      '</div>' +
+
+      '<div class="nombre">' +
+      escapar(resultado.nombre) +
+      '</div>' +
+
+      '<div class="grupo">' +
+      escapar(resultado.grado) +
+      '.º ' +
+      escapar(resultado.grupo) +
+      '</div>' +
+
+      '<div class="detalleError">' +
+      'Seleccionada: ' +
+      escapar(resultado.rutaSeleccionada) +
+      '</div>' +
+
+      '<div class="ruta">' +
+      '🚌 CORRECTA: ' +
+      escapar(resultado.ruta) +
+      '</div>' +
+
+      '<div class="parada">' +
+      '📍 ' +
+      escapar(
+        resultado.parada ||
+        "PENDIENTE"
+      ) +
+      '</div>' +
+
+      '<p><strong>NO se registró el movimiento.</strong></p>';
+
+
+    vibrar(
+      [400,150,400]
+    );
+
+
+    setTimeout(
+      listoSiguiente,
+      5000
+    );
+
+    return;
+  }
+
+
+
+  // ====================================================
+  // DUPLICADO
+  // ====================================================
 
   if (resultado.duplicado) {
-
 
     estado.className =
       "duplicado";
@@ -549,9 +774,7 @@ function mostrarResultado(resultado) {
       '<p>No se creó otro registro.</p>';
 
 
-    vibrar(
-      [250]
-    );
+    vibrar([250]);
 
 
     setTimeout(
@@ -560,17 +783,15 @@ function mostrarResultado(resultado) {
     );
 
     return;
-
   }
 
 
 
-  /* --------------------------------------------------
-     SALIDA SIN ENTRADA
-  -------------------------------------------------- */
+  // ====================================================
+  // SALIDA SIN ENTRADA
+  // ====================================================
 
   if (resultado.sinEntrada) {
-
 
     estado.className =
       "error";
@@ -583,7 +804,7 @@ function mostrarResultado(resultado) {
 
       datosAlumnoSinHora(resultado) +
 
-      '<p>Este alumno no tiene una entrada registrada hoy.</p>';
+      '<p>No se registró la salida.</p>';
 
 
     vibrar(
@@ -593,21 +814,19 @@ function mostrarResultado(resultado) {
 
     setTimeout(
       listoSiguiente,
-      3500
+      4000
     );
 
     return;
-
   }
 
 
 
-  /* --------------------------------------------------
-     NO ES USUARIO DE TRANSPORTE
-  -------------------------------------------------- */
+  // ====================================================
+  // NO USA TRANSPORTE
+  // ====================================================
 
   if (resultado.noTransporte) {
-
 
     estado.className =
       "error";
@@ -628,7 +847,7 @@ function mostrarResultado(resultado) {
       escapar(resultado.grupo) +
       '</div>' +
 
-      '<p>Este alumno no está registrado como usuario del transporte escolar.</p>';
+      '<p>No se creó ningún registro.</p>';
 
 
     vibrar(
@@ -642,14 +861,13 @@ function mostrarResultado(resultado) {
     );
 
     return;
-
   }
 
 
 
-  /* --------------------------------------------------
-     OTROS ERRORES
-  -------------------------------------------------- */
+  // ====================================================
+  // OTRO ERROR
+  // ====================================================
 
   estado.className =
     "error";
@@ -677,13 +895,12 @@ function mostrarResultado(resultado) {
     listoSiguiente,
     3000
   );
-
 }
 
 
 
 /* ======================================================
-   MOSTRAR DATOS DEL ALUMNO
+   DATOS DEL ALUMNO
 ====================================================== */
 
 function datosAlumno(resultado) {
@@ -694,22 +911,19 @@ function datosAlumno(resultado) {
     escapar(resultado.nombre) +
     '</div>' +
 
-
     '<div class="grupo">' +
     escapar(resultado.grado) +
     '.º ' +
     escapar(resultado.grupo) +
     '</div>' +
 
-
     '<div class="ruta">' +
-    '🚌 ' +
+    '🚌 ASIGNADA: ' +
     escapar(
       resultado.ruta ||
       "PENDIENTE"
     ) +
     '</div>' +
-
 
     '<div class="parada">' +
     '📍 ' +
@@ -719,21 +933,18 @@ function datosAlumno(resultado) {
     ) +
     '</div>' +
 
-
     '<div class="hora">' +
     '🕐 ' +
     escapar(resultado.hora) +
     '</div>'
 
   );
-
 }
 
 
 
 /* ======================================================
    DATOS SIN HORA
-   Para duplicados o errores de movimiento
 ====================================================== */
 
 function datosAlumnoSinHora(resultado) {
@@ -744,13 +955,11 @@ function datosAlumnoSinHora(resultado) {
     escapar(resultado.nombre) +
     '</div>' +
 
-
     '<div class="grupo">' +
     escapar(resultado.grado) +
     '.º ' +
     escapar(resultado.grupo) +
     '</div>' +
-
 
     '<div class="ruta">' +
     '🚌 ' +
@@ -759,7 +968,6 @@ function datosAlumnoSinHora(resultado) {
       "PENDIENTE"
     ) +
     '</div>' +
-
 
     '<div class="parada">' +
     '📍 ' +
@@ -770,13 +978,12 @@ function datosAlumnoSinHora(resultado) {
     '</div>'
 
   );
-
 }
 
 
 
 /* ======================================================
-   PREPARAR SIGUIENTE ALUMNO
+   LISTO PARA SIGUIENTE
 ====================================================== */
 
 function listoSiguiente() {
@@ -788,6 +995,20 @@ function listoSiguiente() {
     document.getElementById("estado");
 
 
+  if (!rutaActual) {
+
+    estado.className =
+      "advertencia";
+
+    estado.innerHTML =
+      '<div class="mensaje">' +
+      '🚌 SELECCIONA UNA RUTA' +
+      '</div>';
+
+    return;
+  }
+
+
   estado.className = "";
 
 
@@ -796,10 +1017,11 @@ function listoSiguiente() {
     '📷 LISTO PARA EL SIGUIENTE ALUMNO' +
     '</div>' +
 
-    '<p>Modo: <strong>' +
+    '<p><strong>' +
     escapar(tipoActual) +
+    ' · ' +
+    escapar(rutaActual) +
     '</strong></p>';
-
 }
 
 
@@ -813,15 +1035,12 @@ function escapar(texto) {
   const div =
     document.createElement("div");
 
-
   div.textContent =
     String(
       texto ?? ""
     );
 
-
   return div.innerHTML;
-
 }
 
 
@@ -837,9 +1056,7 @@ function vibrar(patron) {
     navigator.vibrate(
       patron
     );
-
   }
-
 }
 
 
@@ -875,7 +1092,6 @@ const lector =
     },
 
     false
-
   );
 
 
@@ -885,8 +1101,8 @@ lector.render(
 
   function(error) {
 
-    // Estos errores son normales mientras
-    // la cámara busca un código QR.
+    // Es normal recibir errores mientras
+    // la cámara busca un QR.
 
   }
 
