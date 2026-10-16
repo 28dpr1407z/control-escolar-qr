@@ -453,56 +453,47 @@ function escaneado(texto) {
   );
 
 
+  // JSONP evita el bloqueo CORS al llamar Google Apps Script desde GitHub Pages.
+  const callbackName = "gsrCallback_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
   const url =
     API_URL +
-    "?matricula=" +
-    encodeURIComponent(texto) +
-    "&tipo=" +
-    encodeURIComponent(movimiento) +
-    "&ruta=" +
-    encodeURIComponent(ruta) +
-    "&t=" +
-    Date.now();
+    "?matricula=" + encodeURIComponent(texto) +
+    "&tipo=" + encodeURIComponent(movimiento) +
+    "&ruta=" + encodeURIComponent(ruta) +
+    "&callback=" + encodeURIComponent(callbackName) +
+    "&t=" + Date.now();
 
+  let scriptJSONP = document.createElement("script");
+  let temporizadorJSONP;
 
-  fetch(
-    url,
-    {
-      method: "GET",
-      cache: "no-store"
-    }
-  )
+  function limpiarJSONP() {
+    if (temporizadorJSONP) clearTimeout(temporizadorJSONP);
+    if (scriptJSONP && scriptJSONP.parentNode) scriptJSONP.parentNode.removeChild(scriptJSONP);
+    try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
+  }
 
-  .then(function(respuesta) {
-
-    if (!respuesta.ok) {
-      throw new Error(
-        "HTTP " + respuesta.status
-      );
-    }
-
-    return respuesta.json();
-  })
-
-  .then(function(resultado) {
-
+  window[callbackName] = function(resultado) {
+    limpiarJSONP();
     procesarResultado(resultado);
-  })
+  };
 
-  .catch(function(error) {
-
-    console.error(error);
-
-    mostrar(
-      "error",
-      "❌ ERROR DE CONEXIÓN",
-      "No se pudo completar el registro."
-    );
-
+  scriptJSONP.onerror = function() {
+    limpiarJSONP();
+    console.error("No se pudo cargar la respuesta JSONP de Apps Script.");
+    mostrar("error", "❌ ERROR DE CONEXIÓN", "Verifica que la implementación de Apps Script admita JSONP.");
     vibrar([300,100,300]);
-
     setTimeout(listo, 3000);
-  });
+  };
+
+  temporizadorJSONP = setTimeout(function() {
+    limpiarJSONP();
+    mostrar("error", "❌ TIEMPO DE ESPERA AGOTADO", "Apps Script no respondió. Verifica el despliegue y los permisos.");
+    vibrar([300,100,300]);
+    setTimeout(listo, 3000);
+  }, 15000);
+
+  scriptJSONP.src = url;
+  document.head.appendChild(scriptJSONP);
 }
 
 
